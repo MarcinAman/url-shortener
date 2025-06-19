@@ -1,0 +1,10 @@
+###
+POST http://localhost:8080/shorten-url
+Content-Type: application/json
+
+{
+  "url": "http://lolz.com/xd"
+}
+
+###
+GET http://localhost:8080/
