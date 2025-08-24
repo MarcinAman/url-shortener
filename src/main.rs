@@ -80,3 +80,138 @@ async fn main() -> std::io::Result<()> {
         .run()
         .await
 }
+
+#[cfg(test)]
+mod e2e_tests {
+    use super::*;
+
+
+    struct TestApp {
+        redis_service: RedisService,
+    }
+
+    impl TestApp {
+        async fn new() -> Self {
+            // Create a fresh Redis service for testing
+            let redis_service = RedisService::new("redis://localhost:6379")
+                .await
+                .expect("Failed to connect to Redis");
+            
+            TestApp {
+                redis_service,
+            }
+        }
+
+        async fn cleanup_redis(&self) {
+            // Clean up all test data from Redis
+            let _ = self.redis_service.cleanup().await;
+        }
+    }
+
+    impl Clone for TestApp {
+        fn clone(&self) -> Self {
+            TestApp {
+                redis_service: self.redis_service.clone(),
+            }
+        }
+    }
+
+    // Test setup and teardown functions
+    async fn setup_test() -> TestApp {
+        let test_app = TestApp::new().await;
+        // Clean up Redis before each test
+        test_app.cleanup_redis().await;
+        test_app
+    }
+
+    async fn teardown_test(test_app: TestApp) {
+        // Clean up Redis after each test
+        test_app.cleanup_redis().await;
+    }
+
+    #[tokio::test]
+    async fn test_url_shortening_flow() {
+        let test_app = setup_test().await;
+        
+        // Use a real external URL for testing
+        let target_url = "https://httpbin.org/get";
+
+        // Step 1: Test URL shortening logic directly
+        let shortened_url = get_shortened_url(
+            target_url.to_string(), 
+            "http://localhost:8080", 
+            generate_random_code(&mut SmallRng::from_os_rng())
+        ).await;
+
+        // Verify the shortened URL format
+        assert!(shortened_url.starts_with("http://localhost:8080/"));
+        assert!(!shortened_url.contains(&target_url));
+
+        // Step 2: Test Redis storage
+        let short_code = shortened_url
+            .strip_prefix("http://localhost:8080/")
+            .expect("Failed to extract short code");
+
+        let save_result = test_app.redis_service.set(short_code, target_url, Some(60 * 60 * 24)).await;
+        assert!(save_result.is_ok());
+
+        // Step 3: Test Redis retrieval
+        let retrieved_url = test_app.redis_service.get(short_code).await;
+        assert!(retrieved_url.is_ok());
+        assert_eq!(retrieved_url.unwrap(), Some(target_url.to_string()));
+
+        teardown_test(test_app).await;
+    }
+
+    #[tokio::test]
+    async fn test_url_shortening_with_different_urls() {
+        let test_app = setup_test().await;
+        
+        // Test multiple URLs
+        let test_urls = vec![
+            "https://httpbin.org/get",
+            "https://httpbin.org/status/200",
+            "https://httpbin.org/headers",
+        ];
+
+        for test_url in test_urls {
+            // Test URL shortening logic
+            let shortened_url = get_shortened_url(
+                test_url.to_string(), 
+                "http://localhost:8080", 
+                generate_random_code(&mut SmallRng::from_os_rng())
+            ).await;
+
+            assert!(shortened_url.starts_with("http://localhost:8080/"));
+            
+            // Extract short code
+            let short_code = shortened_url
+                .strip_prefix("http://localhost:8080/")
+                .expect("Failed to extract short code");
+
+            // Test Redis storage and retrieval
+            let save_result = test_app.redis_service.set(short_code, test_url, Some(60 * 60 * 24)).await;
+            assert!(save_result.is_ok());
+
+            let retrieved_url = test_app.redis_service.get(short_code).await;
+            assert!(retrieved_url.is_ok());
+            assert_eq!(retrieved_url.unwrap(), Some(test_url.to_string()));
+        }
+
+        teardown_test(test_app).await;
+    }
+
+    #[tokio::test]
+    async fn test_nonexistent_short_url() {
+        let test_app = setup_test().await;
+        
+        // Test retrieval of non-existent key
+        let retrieved_url = test_app.redis_service.get("nonexistent").await;
+        assert!(retrieved_url.is_ok());
+        assert_eq!(retrieved_url.unwrap(), None);
+
+        teardown_test(test_app).await;
+    }
+
+
+}

@@ -1,6 +1,7 @@
 use redis::{Client, RedisError, aio::ConnectionManager};
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct RedisService {
     connection_manager: Arc<ConnectionManager>,
 }
@@ -28,6 +29,12 @@ impl RedisService {
         } else {
             redis::cmd("SET").arg(key).arg(value).arg("NX").query_async(&mut conn).await
         }
+    }
+
+    /// Cleans up all data in the current Redis database (use with caution in tests)
+    pub async fn cleanup(&self) -> Result<(), RedisError> {
+        let mut conn = (*self.connection_manager).clone();
+        redis::cmd("FLUSHDB").query_async(&mut conn).await
     }
 }
 
