@@ -1,5 +1,5 @@
 use actix_web::web::{Data, Json};
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use actix_web::middleware::Logger;
 use rand::rngs::SmallRng;
@@ -37,22 +37,85 @@ struct UrlShortenData {
     short_url: String,
 }
 
+#[derive(Serialize)]
+struct CollisionErrorResponse {
+    error: String,
+    message: String,
+    attempts: u32,
+    url: String,
+}
+
 #[post("/shorten-url")]
 async fn shorten_url(req_body: Json<UrlShortenOptions>, state: Data<AppState>) -> impl Responder {
     let url = req_body.0.url.clone();
-    let shortened_data = UrlShortenData {
-        short_url: get_shortened_url(url.clone(), &state.domain, generate_random_code(&mut state.rng.clone())).await,
-    };
-            //TODO: Collision detection and proper error handling for those cases
-        let save_result = state.redis_service.set(&shortened_data.short_url, &url, Some(60 * 60 * 24)).await;
-        if save_result.is_err() {    
-            log::error!("Failed to save shortened URL: {}", save_result.err().unwrap());
-            return HttpResponse::InternalServerError().finish();
+    
+    // Try to generate a unique short URL with collision resolution
+    let mut attempts = 0;
+    let mut short_url = String::new();
+    let mut collision_detected = false;
+    
+    while attempts < state.max_collision_attempts {
+        attempts += 1;
+        
+        // Generate a new short URL
+        short_url = get_shortened_url(
+            url.clone(), 
+            &state.domain, 
+            generate_random_code(&mut state.rng.clone())
+        ).await;
+        
+        // Extract the short code from the full URL
+        let short_code = short_url
+            .strip_prefix(&format!("{}/", state.domain))
+            .expect("Failed to extract short code from generated URL");
+        
+        // Try to save the short URL
+        let save_result = state.redis_service.set(short_code, &url, Some(60 * 60 * 24)).await;
+        
+        match save_result {
+            Ok(true) => {
+                // Successfully saved, no collision
+                collision_detected = false;
+                break;
+            }
+            Ok(false) => {
+                // Collision detected, key already exists
+                collision_detected = true;
+                log::warn!("Collision detected on attempt {} for URL: {}", attempts, url);
+                
+                if attempts >= state.max_collision_attempts {
+                    log::error!("Failed to generate unique short URL after {} attempts for URL: {}", 
+                               state.max_collision_attempts, url);
+                    return HttpResponse::build(StatusCode::LOOP_DETECTED)
+                        .json(CollisionErrorResponse {
+                            error: "Failed to generate unique short URL".to_string(),
+                            message: format!("Unable to generate a unique shortened URL after {} attempts. Please try again later.", state.max_collision_attempts),
+                            attempts: state.max_collision_attempts,
+                            url: url.clone(),
+                        });
+                }
+                // Continue to next attempt
+            }
+            Err(e) => {
+                // Redis error occurred
+                log::error!("Failed to save shortened URL: {}", e);
+                return HttpResponse::InternalServerError().finish();
+            }
         }
-        if !save_result.unwrap() {
-            log::warn!("Shortened URL already exists, collision detected");
-            // For now, we'll continue, but in production you might want to handle this differently
-        }
+    }
+    
+    // If we get here, we either succeeded or hit max attempts
+    if collision_detected && attempts >= state.max_collision_attempts {
+        return HttpResponse::build(StatusCode::LOOP_DETECTED)
+            .json(CollisionErrorResponse {
+                error: "Failed to generate unique short URL".to_string(),
+                message: format!("Unable to generate a unique shortened URL after {} attempts. Please try again later.", state.max_collision_attempts),
+                attempts: state.max_collision_attempts,
+                url: url.clone(),
+            });
+    }
+    
+    let shortened_data = UrlShortenData { short_url };
     HttpResponse::Ok().json(shortened_data)
 }
 
@@ -60,6 +123,7 @@ struct AppState {
     domain: String,
     rng: SmallRng,
     redis_service: RedisService,
+    max_collision_attempts: u32,
 }
 
 #[actix_web::main]
@@ -70,6 +134,7 @@ async fn main() -> std::io::Result<()> {
             domain: "https://short.me".to_string(),
             rng: SmallRng::from_os_rng(),
             redis_service: get_redis_service().await.unwrap(),
+            max_collision_attempts: 5, // Allow 5 attempts to generate a unique short URL
         });
 
     HttpServer::new(move || {
@@ -218,6 +283,8 @@ mod e2e_tests {
 
         teardown_test(test_app).await;
     }
+
+
 
 
 }

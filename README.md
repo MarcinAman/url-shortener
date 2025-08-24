@@ -8,6 +8,8 @@ A high-performance URL shortening service built with Rust and Actix Web.
 - Redis-based storage with TTL support
 - RESTful API endpoints
 - Comprehensive E2E testing
+- Automatic collision resolution with configurable retry attempts
+- HTTP 508 status code when collision resolution fails
 
 ## Quick Start
 
@@ -34,6 +36,14 @@ The service will be available at `http://localhost:8080`
 
 - `POST /shorten-url` - Shorten a URL
 - `GET /{short_code}` - Redirect to original URL
+
+### Collision Resolution
+
+The service automatically handles URL shortening collisions:
+- **Configurable Retry Attempts**: Default 5 attempts (configurable via `max_collision_attempts`)
+- **Automatic Regeneration**: Each attempt generates a new random code
+- **Error Handling**: Returns HTTP 508 (Loop Detected) if all attempts fail
+- **Detailed Error Response**: JSON response with attempt count and error details
 
 ## Testing
 

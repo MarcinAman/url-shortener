@@ -59,7 +59,6 @@ Tests error handling:
 The following dev-dependencies are added to `Cargo.toml`:
 - `reqwest`: HTTP client for potential future HTTP testing
 - `tokio-test`: Async testing utilities
-- `serde_json`: JSON serialization for test data
 
 ## Running Tests
 
