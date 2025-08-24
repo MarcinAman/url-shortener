@@ -8,7 +8,7 @@ services:
     build: .
     environment:
       - REDIS_URL=redis://redis:6379
-      - RUST_LOG=info
+      - RUST_LOG=warn
     depends_on:
       - redis
     ports:
