@@ -1,12 +1,12 @@
-use actix_web::web::{Data, Json};
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, http::StatusCode};
-use serde::{Deserialize, Serialize};
 use actix_web::middleware::Logger;
+use actix_web::web::{Data, Json};
+use actix_web::{get, http::StatusCode, post, web, App, HttpResponse, HttpServer, Responder};
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
+use serde::{Deserialize, Serialize};
 
 mod url_shortener;
-use url_shortener::{get_shortened_url, generate_random_code};
+use url_shortener::{generate_random_code, get_shortened_url};
 mod redis;
 use redis::get_redis_service;
 
@@ -29,7 +29,7 @@ async fn resolve(path: web::Path<String>, state: web::Data<AppState>) -> impl Re
 
 #[derive(Deserialize)]
 struct UrlShortenOptions {
-    url: String
+    url: String,
 }
 
 #[derive(Serialize)]
@@ -48,31 +48,31 @@ struct CollisionErrorResponse {
 #[post("/shorten-url")]
 async fn shorten_url(req_body: Json<UrlShortenOptions>, state: Data<AppState>) -> impl Responder {
     let url = req_body.0.url.clone();
-    
+
     // Try to generate a unique short URL with collision resolution
     let mut attempts = 0;
     let mut short_url = String::new();
     let mut collision_detected = false;
     let mut rng = SmallRng::from_os_rng();
-    
+
     while attempts < state.max_collision_attempts {
         attempts += 1;
-        
+
         // Generate a new short URL
-        short_url = get_shortened_url(
-            url.clone(), 
-            &state.domain, 
-            generate_random_code(&mut rng)
-        ).await;
-        
+        short_url =
+            get_shortened_url(url.clone(), &state.domain, generate_random_code(&mut rng)).await;
+
         // Extract the short code from the full URL
         let short_code = short_url
             .strip_prefix(&format!("{}/", state.domain))
             .expect("Failed to extract short code from generated URL");
-        
+
         // Try to save the short URL
-        let save_result = state.redis_service.set(short_code, &url, Some(60 * 60 * 24)).await;
-        
+        let save_result = state
+            .redis_service
+            .set(short_code, &url, Some(60 * 60 * 24))
+            .await;
+
         match save_result {
             Ok(true) => {
                 // Successfully saved, no collision
@@ -82,11 +82,18 @@ async fn shorten_url(req_body: Json<UrlShortenOptions>, state: Data<AppState>) -
             Ok(false) => {
                 // Collision detected, key already exists
                 collision_detected = true;
-                log::warn!("Collision detected on attempt {} for URL: {}", attempts, url);
-                
+                log::warn!(
+                    "Collision detected on attempt {} for URL: {}",
+                    attempts,
+                    url
+                );
+
                 if attempts >= state.max_collision_attempts {
-                    log::error!("Failed to generate unique short URL after {} attempts for URL: {}", 
-                               state.max_collision_attempts, url);
+                    log::error!(
+                        "Failed to generate unique short URL after {} attempts for URL: {}",
+                        state.max_collision_attempts,
+                        url
+                    );
                     return HttpResponse::build(StatusCode::LOOP_DETECTED)
                         .json(CollisionErrorResponse {
                             error: "Failed to generate unique short URL".to_string(),
@@ -104,7 +111,7 @@ async fn shorten_url(req_body: Json<UrlShortenOptions>, state: Data<AppState>) -
             }
         }
     }
-    
+
     // If we get here, we either succeeded or hit max attempts
     if collision_detected && attempts >= state.max_collision_attempts {
         return HttpResponse::build(StatusCode::LOOP_DETECTED)
@@ -115,7 +122,7 @@ async fn shorten_url(req_body: Json<UrlShortenOptions>, state: Data<AppState>) -
                 url: url.clone(),
             });
     }
-    
+
     let shortened_data = UrlShortenData { short_url };
     HttpResponse::Ok().json(shortened_data)
 }
@@ -130,12 +137,11 @@ struct AppState {
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
     log::info!("Starting URL Shortener service");
-    let state = Data::new(
-        AppState {
-            domain: "https://short.me".to_string(),
-            redis_service: get_redis_service().await.unwrap(),
-            max_collision_attempts: 5, // Allow 5 attempts to generate a unique short URL
-        });
+    let state = Data::new(AppState {
+        domain: "https://short.me".to_string(),
+        redis_service: get_redis_service().await.unwrap(),
+        max_collision_attempts: 5, // Allow 5 attempts to generate a unique short URL
+    });
 
     log::info!("HTTP server binding on 0.0.0.0:8080");
     HttpServer::new(move || {
@@ -146,15 +152,14 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::new("%a %{User-Agent}i"))
             .app_data(state.clone())
     })
-        .bind(("0.0.0.0", 8080))?
-        .run()
-        .await
+    .bind(("0.0.0.0", 8080))?
+    .run()
+    .await
 }
 
 #[cfg(test)]
 mod e2e_tests {
     use super::*;
-
 
     struct TestApp {
         redis_service: RedisService,
@@ -166,10 +171,8 @@ mod e2e_tests {
             let redis_service = RedisService::new("redis://localhost:6379")
                 .await
                 .expect("Failed to connect to Redis");
-            
-            TestApp {
-                redis_service,
-            }
+
+            TestApp { redis_service }
         }
 
         async fn cleanup_redis(&self) {
@@ -202,16 +205,17 @@ mod e2e_tests {
     #[tokio::test]
     async fn test_url_shortening_flow() {
         let test_app = setup_test().await;
-        
+
         // Use a real external URL for testing
         let target_url = "https://httpbin.org/get";
 
         // Step 1: Test URL shortening logic directly
         let shortened_url = get_shortened_url(
-            target_url.to_string(), 
-            "http://localhost:8080", 
-            generate_random_code(&mut SmallRng::from_os_rng())
-        ).await;
+            target_url.to_string(),
+            "http://localhost:8080",
+            generate_random_code(&mut SmallRng::from_os_rng()),
+        )
+        .await;
 
         // Verify the shortened URL format
         assert!(shortened_url.starts_with("http://localhost:8080/"));
@@ -222,9 +226,15 @@ mod e2e_tests {
             .strip_prefix("http://localhost:8080/")
             .expect("Failed to extract short code");
 
-        let save_result = test_app.redis_service.set(short_code, target_url, Some(60 * 60 * 24)).await;
+        let save_result = test_app
+            .redis_service
+            .set(short_code, target_url, Some(60 * 60 * 24))
+            .await;
         assert!(save_result.is_ok());
-        assert!(save_result.unwrap(), "Key should have been set successfully");
+        assert!(
+            save_result.unwrap(),
+            "Key should have been set successfully"
+        );
 
         // Step 3: Test Redis retrieval
         let retrieved_url = test_app.redis_service.get(short_code).await;
@@ -237,7 +247,7 @@ mod e2e_tests {
     #[tokio::test]
     async fn test_url_shortening_with_different_urls() {
         let test_app = setup_test().await;
-        
+
         // Test multiple URLs
         let test_urls = vec![
             "https://httpbin.org/get",
@@ -248,22 +258,29 @@ mod e2e_tests {
         for test_url in test_urls {
             // Test URL shortening logic
             let shortened_url = get_shortened_url(
-                test_url.to_string(), 
-                "http://localhost:8080", 
-                generate_random_code(&mut SmallRng::from_os_rng())
-            ).await;
+                test_url.to_string(),
+                "http://localhost:8080",
+                generate_random_code(&mut SmallRng::from_os_rng()),
+            )
+            .await;
 
             assert!(shortened_url.starts_with("http://localhost:8080/"));
-            
+
             // Extract short code
             let short_code = shortened_url
                 .strip_prefix("http://localhost:8080/")
                 .expect("Failed to extract short code");
 
             // Test Redis storage and retrieval
-            let save_result = test_app.redis_service.set(short_code, test_url, Some(60 * 60 * 24)).await;
+            let save_result = test_app
+                .redis_service
+                .set(short_code, test_url, Some(60 * 60 * 24))
+                .await;
             assert!(save_result.is_ok());
-            assert!(save_result.unwrap(), "Key should have been set successfully");
+            assert!(
+                save_result.unwrap(),
+                "Key should have been set successfully"
+            );
 
             let retrieved_url = test_app.redis_service.get(short_code).await;
             assert!(retrieved_url.is_ok());
@@ -276,7 +293,7 @@ mod e2e_tests {
     #[tokio::test]
     async fn test_nonexistent_short_url() {
         let test_app = setup_test().await;
-        
+
         // Test retrieval of non-existent key
         let retrieved_url = test_app.redis_service.get("nonexistent").await;
         assert!(retrieved_url.is_ok());
@@ -284,8 +301,4 @@ mod e2e_tests {
 
         teardown_test(test_app).await;
     }
-
-
-
-
 }
