@@ -38,7 +38,7 @@ async fn shorten_url(req_body: Json<UrlShortenOptions>, state: Data<AppState>) -
 
 struct AppState {
     domain: String,
-    counter: Arc<AtomicU64>,
+    counter: Arc<AtomicU64>, // we move counter to redis
 }
 
 #[actix_web::main]
@@ -65,7 +65,9 @@ async fn main() -> std::io::Result<()> {
 
 async fn get_shortened_url(_url: String, server_domain: &str, counter: &Arc<AtomicU64>) -> String {
     let order = counter.fetch_add(1, SeqCst);
-    format!("{}/{}", server_domain, base62::encode(order))
+    // We store old url and the order integer in redis using HSET command
+    // We can use the TTL feature for expiration date
+    format!("{}/{}", server_domain, base62::encode(order)) // TODO: base62 doesn't add padding
 }
 
 async fn resolve_shortened_url(_shortened_url: String) -> Option<String> {
