@@ -13,7 +13,7 @@ docker-up:
 	docker compose up -d --build redis app
 
 perf:
-	docker compose run --rm -e SAVES=$(SAVES) -e RATIO=$(RATIO) -e VUS=$(VUS) k6
+	docker compose run --rm -e VUS=$(VUS) -e DURATION=$(DURATION) k6
 
 help:
 	@echo "Available commands:"

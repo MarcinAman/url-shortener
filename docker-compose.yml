@@ -19,9 +19,7 @@ services:
       - ./k6:/scripts
     environment:
       - BASE_URL=${BASE_URL:-http://app:8080}
-      - SAVES=${SAVES:-1000}
-      - RATIO=${RATIO:-10}
-      - VUS=${VUS:-10}
+      - VUS=${VUS:-50}
       - DURATION=${DURATION:-1m}
     entrypoint: ["k6"]
     command: ["run", "/scripts/perf.js"]
