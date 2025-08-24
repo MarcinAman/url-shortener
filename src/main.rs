@@ -53,6 +53,7 @@ async fn shorten_url(req_body: Json<UrlShortenOptions>, state: Data<AppState>) -
     let mut attempts = 0;
     let mut short_url = String::new();
     let mut collision_detected = false;
+    let mut rng = SmallRng::from_os_rng();
     
     while attempts < state.max_collision_attempts {
         attempts += 1;
@@ -61,7 +62,7 @@ async fn shorten_url(req_body: Json<UrlShortenOptions>, state: Data<AppState>) -
         short_url = get_shortened_url(
             url.clone(), 
             &state.domain, 
-            generate_random_code(&mut state.rng.clone())
+            generate_random_code(&mut rng)
         ).await;
         
         // Extract the short code from the full URL
@@ -121,7 +122,6 @@ async fn shorten_url(req_body: Json<UrlShortenOptions>, state: Data<AppState>) -
 
 struct AppState {
     domain: String,
-    rng: SmallRng,
     redis_service: RedisService,
     max_collision_attempts: u32,
 }
@@ -133,7 +133,6 @@ async fn main() -> std::io::Result<()> {
     let state = Data::new(
         AppState {
             domain: "https://short.me".to_string(),
-            rng: SmallRng::from_os_rng(),
             redis_service: get_redis_service().await.unwrap(),
             max_collision_attempts: 5, // Allow 5 attempts to generate a unique short URL
         });
