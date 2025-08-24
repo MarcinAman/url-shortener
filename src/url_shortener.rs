@@ -2,6 +2,8 @@ use rand::Rng;
 use rand::rngs::SmallRng;
 
 /// Generates a shortened URL by combining a checksum of the original URL with a random part
+/// Hashing takes care of most of the collisions, but we still need to generate a random part to avoid collisions since CRC32 is not a secure hash function
+/// We accept that if the url is the same, the shortened url will be different because of the random part. We trade it for sake of analytics
 pub async fn get_shortened_url(url: String, server_domain: &str, random_part: String) -> String {
     let checksum = crc32fast::hash(url.as_bytes());
     let encoded = base62::encode(checksum);
@@ -14,12 +16,6 @@ pub async fn get_shortened_url(url: String, server_domain: &str, random_part: St
 pub fn generate_random_code(rng: &mut SmallRng) -> String {
     let random_number: u32 = rng.random();
     base62::encode(random_number)
-}
-
-/// Resolves a shortened URL back to the original URL
-/// Currently returns None as implementation is pending
-pub async fn resolve_shortened_url(_shortened_url: String) -> Option<String> {
-    None
 }
 
 #[cfg(test)]
