@@ -1,5 +1,6 @@
 use redis::{Client, RedisError, aio::ConnectionManager};
 use std::sync::Arc;
+use tokio::time::{sleep, Duration};
 
 #[derive(Clone)]
 pub struct RedisService {
@@ -42,7 +43,24 @@ impl RedisService {
 }
 
 pub async fn get_redis_service() -> Result<RedisService, RedisError> {
-    RedisService::new("redis://localhost:6379").await
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
+    let max_attempts: u32 = std::env::var("REDIS_CONNECT_RETRIES").ok().and_then(|v| v.parse().ok()).unwrap_or(30);
+    let backoff_ms: u64 = std::env::var("REDIS_CONNECT_BACKOFF_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(500);
+
+    let mut attempt: u32 = 0;
+    loop {
+        match RedisService::new(&redis_url).await {
+            Ok(service) => return Ok(service),
+            Err(err) => {
+                attempt += 1;
+                log::warn!("Failed to connect to Redis (attempt {}/{}): {}", attempt, max_attempts, err);
+                if attempt >= max_attempts {
+                    return Err(err);
+                }
+                sleep(Duration::from_millis(backoff_ms)).await;
+            }
+        }
+    }
 }
 
 #[cfg(test)]

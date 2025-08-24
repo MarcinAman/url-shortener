@@ -89,3 +89,35 @@ src/
 ## Documentation
 
 For detailed testing information, see [E2E_TESTING.md](E2E_TESTING.md).
+
+## Performance testing with k6
+
+Minimal Docker-based setup is provided to run a GET-heavy workload (default 10:1 GET:POST) against the service.
+
+### One-time build and start
+
+```bash
+make docker-up
+```
+
+This builds the app container and starts `redis` and `app`. The app listens on `0.0.0.0:8080`.
+
+### Run the k6 test
+
+```bash
+# Default parameters
+make perf
+
+# Override parameters
+SAVES=5000 RATIO=20 VUS=50 make perf
+```
+
+- `SAVES`: number of POST /shorten-url requests to perform total (default 1000)
+- `RATIO`: GET:POST ratio target (default 10)
+- `VUS`: number of virtual users (default 10)
+- `BASE_URL`: set automatically to `http://app:8080` when running via docker compose
+
+The test script is in `k6/perf.js`. It:
+- Prefers GETs over POSTs based on `RATIO`
+- Performs up to `SAVES` POSTs to seed short URLs
+- Randomly selects created codes for GET requests

@@ -4,3 +4,26 @@ services:
     ports:
       - "6379:6379"
     command: redis-server --save 60 1 --loglevel warning
+  app:
+    build: .
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=info
+    depends_on:
+      - redis
+    ports:
+      - "8080:8080"
+  k6:
+    image: grafana/k6:0.49.0
+    volumes:
+      - ./k6:/scripts
+    environment:
+      - BASE_URL=${BASE_URL:-http://app:8080}
+      - SAVES=${SAVES:-1000}
+      - RATIO=${RATIO:-10}
+      - VUS=${VUS:-10}
+      - DURATION=${DURATION:-1m}
+    entrypoint: ["k6"]
+    command: ["run", "/scripts/perf.js"]
+    depends_on:
+      - app

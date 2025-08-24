@@ -129,6 +129,7 @@ struct AppState {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
+    log::info!("Starting URL Shortener service");
     let state = Data::new(
         AppState {
             domain: "https://short.me".to_string(),
@@ -137,6 +138,7 @@ async fn main() -> std::io::Result<()> {
             max_collision_attempts: 5, // Allow 5 attempts to generate a unique short URL
         });
 
+    log::info!("HTTP server binding on 0.0.0.0:8080");
     HttpServer::new(move || {
         App::new()
             .service(resolve)
@@ -145,7 +147,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::new("%a %{User-Agent}i"))
             .app_data(state.clone())
     })
-        .bind(("127.0.0.1", 8080))?
+        .bind(("0.0.0.0", 8080))?
         .run()
         .await
 }
