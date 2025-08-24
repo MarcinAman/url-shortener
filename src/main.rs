@@ -43,12 +43,16 @@ async fn shorten_url(req_body: Json<UrlShortenOptions>, state: Data<AppState>) -
     let shortened_data = UrlShortenData {
         short_url: get_shortened_url(url.clone(), &state.domain, generate_random_code(&mut state.rng.clone())).await,
     };
-    //TODO: Collision detection and proper error handling for those cases
-    let save_result = state.redis_service.set(&shortened_data.short_url, &url, Some(60 * 60 * 24)).await;
-    if save_result.is_err() {    
-        log::error!("Failed to save shortened URL: {}", save_result.err().unwrap());
-        return HttpResponse::InternalServerError().finish();
-    }
+            //TODO: Collision detection and proper error handling for those cases
+        let save_result = state.redis_service.set(&shortened_data.short_url, &url, Some(60 * 60 * 24)).await;
+        if save_result.is_err() {    
+            log::error!("Failed to save shortened URL: {}", save_result.err().unwrap());
+            return HttpResponse::InternalServerError().finish();
+        }
+        if !save_result.unwrap() {
+            log::warn!("Shortened URL already exists, collision detected");
+            // For now, we'll continue, but in production you might want to handle this differently
+        }
     HttpResponse::Ok().json(shortened_data)
 }
 
@@ -154,6 +158,7 @@ mod e2e_tests {
 
         let save_result = test_app.redis_service.set(short_code, target_url, Some(60 * 60 * 24)).await;
         assert!(save_result.is_ok());
+        assert!(save_result.unwrap(), "Key should have been set successfully");
 
         // Step 3: Test Redis retrieval
         let retrieved_url = test_app.redis_service.get(short_code).await;
@@ -192,6 +197,7 @@ mod e2e_tests {
             // Test Redis storage and retrieval
             let save_result = test_app.redis_service.set(short_code, test_url, Some(60 * 60 * 24)).await;
             assert!(save_result.is_ok());
+            assert!(save_result.unwrap(), "Key should have been set successfully");
 
             let retrieved_url = test_app.redis_service.get(short_code).await;
             assert!(retrieved_url.is_ok());

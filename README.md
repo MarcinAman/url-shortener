@@ -61,9 +61,16 @@ cargo test e2e_tests -- --nocapture --test-threads=1
 
 ### Test Structure
 
+#### E2E Tests
 - `test_url_shortening_flow` - Complete URL shortening flow
 - `test_url_shortening_with_different_urls` - Multiple URL uniqueness
 - `test_nonexistent_short_url` - Error handling for missing URLs
+
+#### RedisService Unit Tests
+- `test_redis_service_set_then_get` - Tests Redis set and get operations
+- `test_redis_service_get_nonexistent_key` - Tests handling of missing keys
+- `test_redis_service_set_nx_prevents_overwrite` - Tests that NX flag prevents key overwriting (returns false)
+- `test_redis_service_ttl_functionality` - Tests TTL expiration behavior
 
 ## Development
 

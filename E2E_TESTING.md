@@ -10,6 +10,8 @@ The E2E tests verify the complete URL shortening flow by testing the core compon
 3. **Error Handling**: Testing edge cases and failure scenarios
 4. **Data Integrity**: Ensuring shortened URLs are unique and correctly formatted
 
+**Note**: RedisService-specific tests (set/get operations, key overwriting, TTL functionality) are now unit tests within the `redis.rs` module.
+
 ## Test Structure
 
 ### TestApp Helper
