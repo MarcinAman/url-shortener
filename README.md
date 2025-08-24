@@ -11,6 +11,21 @@ A high-performance URL shortening service built with Rust and Actix Web.
 - Automatic collision resolution with configurable retry attempts
 - HTTP 508 status code when collision resolution fails
 
+## How Short URLs Are Generated
+
+The service generates short URLs using a combination of CRC32 checksums and random codes:
+
+1. **CRC32 Checksum**: A 32-bit checksum is computed from the original URL
+2. **Random Code Generation**: A random 6-character alphanumeric code is generated
+3. **Collision Resolution**: If a collision occurs, the service automatically generates new random codes up to a configurable limit
+4. **Final Short Code**: The final short code is a combination that ensures uniqueness and limit the ability for "guessing" the url.
+
+This approach provides:
+- **Fast Generation**: CRC32 is computationally efficient
+- **Uniqueness**: Random codes minimize collision probability
+- **Reliability**: Automatic collision resolution handles edge cases
+- **Performance**: O(1) average time complexity for URL shortening
+
 ## Quick Start
 
 ### Prerequisites
@@ -47,40 +62,18 @@ The service automatically handles URL shortening collisions:
 
 ## Testing
 
-### E2E Tests
-
-The project includes comprehensive End-to-End tests that verify the complete URL shortening flow:
+### Running Tests
 
 ```bash
-# Run all E2E tests
-cargo test e2e_tests -- --nocapture
+# Run all tests
+cargo test
 
-# Run specific test
-cargo test test_url_shortening_flow -- --nocapture
+# Run tests with output
+cargo test -- --nocapture
 
 # Run tests with single thread (recommended for Redis operations)
-cargo test e2e_tests -- --nocapture --test-threads=1
+cargo test -- --nocapture --test-threads=1
 ```
-
-### Test Features
-
-- **Automatic Redis Cleanup**: Tests handle Redis cleanup automatically
-- **Isolated Testing**: Each test runs in isolation with fresh Redis state
-- **Core Logic Testing**: Tests the actual URL shortening and Redis operations
-- **Error Handling**: Comprehensive testing of edge cases
-
-### Test Structure
-
-#### E2E Tests
-- `test_url_shortening_flow` - Complete URL shortening flow
-- `test_url_shortening_with_different_urls` - Multiple URL uniqueness
-- `test_nonexistent_short_url` - Error handling for missing URLs
-
-#### RedisService Unit Tests
-- `test_redis_service_set_then_get` - Tests Redis set and get operations
-- `test_redis_service_get_nonexistent_key` - Tests handling of missing keys
-- `test_redis_service_set_nx_prevents_overwrite` - Tests that NX flag prevents key overwriting (returns false)
-- `test_redis_service_ttl_functionality` - Tests TTL expiration behavior
 
 ## Development
 
@@ -91,21 +84,6 @@ src/
 ├── main.rs          # Main application and E2E tests
 ├── url_shortener.rs # URL shortening logic
 └── redis.rs         # Redis service implementation
-```
-
-### Adding New Tests
-
-To add new E2E tests, use the provided setup and teardown functions:
-
-```rust
-#[tokio::test]
-async fn test_new_feature() {
-    let test_app = setup_test().await;
-    
-    // Test implementation here
-    
-    teardown_test(test_app).await;
-}
 ```
 
 ## Documentation
