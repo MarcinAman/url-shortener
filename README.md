@@ -4,7 +4,7 @@ A high-performance URL shortening service built with Rust and Actix Web.
 
 ## Features
 
-- Fast URL shortening with CRC32 checksums and random codes
+- Fast URL shortening with CRC32 checksums and optionally random codes. CRC32 returns u32 which is plenty for most cases (up to 6 digits of base62 which means 62^6 slots and we also have the random part which extends this range).
 - Redis-based storage with TTL support
 - RESTful API endpoints
 - Comprehensive E2E testing
@@ -134,25 +134,25 @@ docker compose run --rm -e VUS=1000 -e DURATION=5m k6
      ✓ post status is 200
      ✓ get status is 307
 
-     checks.........................: 100.00%  ✓ 40283353     ✗ 0       
-     data_received..................: 5.8 GB   19 MB/s
+     checks.........................: 100.00%  ✓ 41870422      ✗ 0       
+     data_received..................: 6.6 GB   22 MB/s
      data_sent......................: 3.8 GB   13 MB/s
-     http_req_blocked...............: avg=7.12µs   min=0s        med=625ns   max=132.75ms p(90)=1.25µs   p(95)=1.62µs  
-     http_req_connecting............: avg=1.98µs   min=0s        med=0s      max=90.41ms  p(90)=0s       p(95)=0s      
-   ✓ http_req_duration..............: avg=17.98ms  min=57µs      med=16.86ms max=205.39ms p(90)=25.68ms  p(95)=31.78ms 
-       { expected_response:true }...: avg=17.98ms  min=57µs      med=16.86ms max=205.39ms p(90)=25.68ms  p(95)=31.78ms 
-   ✓ http_req_failed................: 0.00%    ✓ 0            ✗ 40283353
-     http_req_receiving.............: avg=257.18µs min=-409472ns med=7.5µs   max=154.07ms p(90)=14.16µs  p(95)=42.79µs 
-     http_req_sending...............: avg=25.89µs  min=-124931ns med=3.08µs  max=154.03ms p(90)=5.62µs   p(95)=15.66µs 
-     http_req_tls_handshaking.......: avg=0s       min=0s        med=0s      max=0s       p(90)=0s       p(95)=0s      
-     http_req_waiting...............: avg=17.69ms  min=49.25µs   med=16.81ms max=121.08ms p(90)=25.51ms  p(95)=30.91ms 
-     http_reqs......................: 40283353 134252.77366/s
-     iteration_duration.............: avg=81.89ms  min=1.43ms    med=77.36ms max=378.89ms p(90)=109.17ms p(95)=124.49ms
-     iterations.....................: 3662123  12204.797605/s
-     vus............................: 1000     min=1000       max=1000  
-     vus_max........................: 1000     min=1000       max=1000  
+     http_req_blocked...............: avg=9.13µs   min=167ns     med=625ns   max=192.31ms p(90)=1.16µs  p(95)=1.54µs  
+     http_req_connecting............: avg=3.31µs   min=0s        med=0s      max=104.43ms p(90)=0s      p(95)=0s      
+   ✓ http_req_duration..............: avg=17.42ms  min=61.54µs   med=16.31ms max=272.37ms p(90)=24.71ms p(95)=30.61ms 
+       { expected_response:true }...: avg=17.42ms  min=61.54µs   med=16.31ms max=272.37ms p(90)=24.71ms p(95)=30.61ms 
+   ✓ http_req_failed................: 0.00%    ✓ 0             ✗ 41870422
+     http_req_receiving.............: avg=243.69µs min=-567097ns med=7.45µs  max=212.23ms p(90)=14.25µs p(95)=42µs    
+     http_req_sending...............: avg=24.4µs   min=-475098ns med=2.91µs  max=182.52ms p(90)=5.33µs  p(95)=14.79µs 
+     http_req_tls_handshaking.......: avg=0s       min=0s        med=0s      max=0s       p(90)=0s      p(95)=0s      
+     http_req_waiting...............: avg=17.15ms  min=51.41µs   med=16.26ms max=208.83ms p(90)=24.54ms p(95)=29.76ms 
+     http_reqs......................: 41870422 139553.376017/s
+     iteration_duration.............: avg=78.78ms  min=1ms       med=74.21ms max=444.1ms  p(90)=104.6ms p(95)=120.11ms
+     iterations.....................: 3806402  12686.670547/s
+     vus............................: 1000     min=1000        max=1000  
+     vus_max........................: 1000     min=1000        max=1000  
 
 
-running (5m00.1s), 0000/1000 VUs, 3662123 complete and 0 interrupted iterations
+running (5m00.0s), 0000/1000 VUs, 3806402 complete and 0 interrupted iterations
 default ✓ [======================================] 1000 VUs  5m0s
 ```
